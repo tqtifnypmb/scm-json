@@ -23,12 +23,6 @@
              (string->list expected))
    #t)
 
- (define (parse-read-till parser expect)
-  (let loop ((ch (get-next-char parser)))
-   (if (char=? ch expect)
-    '()
-    (loop (get-next-char parser)))))
-
  (define (parse-read-true parser)
   (expect-string parser "true")
   #t)
@@ -41,6 +35,7 @@
   (expect-string parser "null")
   '())
 
+ ;parse string
  (define (parse-read-string parser)
   (parse-read-till parser #\")  ;drop begining "
   (let loop ((str "")
@@ -49,6 +44,13 @@
     (loop (string-append str (string ch))
           (get-next-char parser))
     str)))
+
+ ;parse array
+ (define (parse-read-till parser expect)
+  (let loop ((ch (get-next-char parser)))
+   (if (char=? ch expect)
+    '()
+    (loop (get-next-char parser)))))
 
  (define (parse-read-array parser)
   (parse-read-till parser #\[)  ;drop begining [
@@ -61,6 +63,7 @@
     (else (let ((r (append acc (cons (parse-read-value parser) '()))))
            (loop (peek-next-char parser) r))))))
 
+ ;parse object
  (define (parse-read-object-entry parser)
   (let ((key (parse-read-string parser)))
    (parse-read-till parser #\:)
@@ -77,9 +80,32 @@
     (else (let ((r (parse-read-object-entry parser)))
            (loop (append acc (cons r '())) (peek-next-char parser)))))))
 
- (define (parse-read-number parser)
-  '())
+ ;parse number
+ (define (parse-read-number-realpart parser acc)
+  (assert (not (char-ci=? (peek-next-char parser) #\e)))
 
+  (let loop ((acc2 acc)
+             (ch (peek-next-char parser)))
+   (cond
+    ((eof-object? ch) (string->number acc2))
+    ((or (char-ci=? #\e ch)
+         (char-numeric? ch)) (get-next-char parser) (loop (string-append acc2 (string ch)) (peek-next-char parser)))
+    ((not (char-numeric? ch)) (string->number acc2))
+    (else (raise (make-violation))))))
+
+ (define (parse-read-number parser)
+  (let loop ((acc "")
+             (ch (peek-next-char parser)))
+   (cond
+    ((eof-object? ch) (string->number acc))
+    ((eqv? ch #\.) (get-next-char parser) (parse-read-number-realpart parser (string-append acc (string ch))))
+    ((or (eqv? #\- ch)
+         (eqv? #\+ ch)
+         (char-numeric? ch)) (get-next-char parser) (loop (string-append acc (string ch)) (peek-next-char parser)))
+    ((not (char-numeric? ch)) (string->number acc))
+    (else (raise (make-violation))))))
+
+ ;parse dispatch
  (define parse-read-value
   (lambda (parser)
    (let loop ((c (peek-next-char parser)))
@@ -94,7 +120,7 @@
      ((eqv? #\n c) (parse-read-null parser))
      ((or (eqv? #\+ c)
           (eqv? #\- c)
-          (fixnum? (string->number (string c)))) (parse-read-number parser))
+          (char-numeric? c)) (parse-read-number parser))
      (else (raise (make-violation)))))))
 
  ;Interface
