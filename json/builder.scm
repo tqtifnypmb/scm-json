@@ -1,5 +1,5 @@
 (library (json builder)
- (export scm->json)
+ (export json-build)
  (import (rnrs))
 
  (define-record-type builder
@@ -127,6 +127,6 @@
    (else (raise (make-violation)))))
 
  ;Interface
- (define (scm->json val pretty)
+ (define (json-build val pretty)
   (json-build-value val pretty 1))
 )

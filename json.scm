@@ -5,9 +5,11 @@
          (json parser)
          (rnrs))
 
- (define (json->string obj pretty)
-  (scm->json obj pretty))
+ (define-syntax json->string
+  (syntax-rules ()
+   ((_ obj pretty) (json-build obj pretty))))
 
- (define (string->json str)
-  (json-parse str))
+ (define-syntax string->json
+  (syntax-rules ()
+   ((_ str) (json-parse str))))
 )
