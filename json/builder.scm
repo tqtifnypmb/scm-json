@@ -6,7 +6,12 @@
   (fields 
    (mutable result)
    (mutable num-indent)
-   (immutable pretty builder-is-pretty)))
+   (mutable type)      ; 0 - none, 1 - array, 2 - object
+   (immutable pretty builder-is-pretty))
+  (protocol
+   (lambda (new)
+    (lambda (init level pretty)
+     (new init level 0 pretty)))))
 
  (define (builder-inc-indent builder)
   (builder-num-indent-set! builder (+ (builder-num-indent builder) 1)))
@@ -15,11 +20,10 @@
   (builder-num-indent-set! builder (- (builder-num-indent builder) 1)))
 
  (define (builder-begin-array builder)
-   (if (builder-is-pretty builder)
-    (let ((indent (builder-indent-string-1 builder)))
-     (builder-result-set! builder (string-append indent "[\n"))
-     (builder-inc-indent builder))
-    (builder-result-set! builder "[")))
+  (if (builder-is-pretty builder)
+    (begin (builder-result-set! builder "[\n")
+           (builder-inc-indent builder))
+   (builder-result-set! builder "[")))
 
  (define (builder-end-imp builder empty-len sub-len deli)
   (let ((result (builder-result builder)))
@@ -34,15 +38,6 @@
     acc
     (loop (- num 1) (string-append acc "\t")))))
 
- (define (builder-indent-string-1 builder)
-  (if (> (builder-num-indent builder) 1)
-   (begin (builder-dec-indent builder)
-          (let ((indent (builder-indent-string builder)))
-           (builder-inc-indent builder)
-           indent))
-   (builder-indent-string builder)))
-
-
  (define (builder-end-array-imp builder empty-len sub-len)
   (if (builder-is-pretty builder)
    (begin (builder-dec-indent builder)
@@ -51,15 +46,15 @@
    (builder-end-imp builder empty-len sub-len "]")))
 
  (define (builder-end-array builder)
+  (builder-type-set! builder 1)
   (if (builder-is-pretty builder)
    (builder-end-array-imp builder 2 2)
    (builder-end-array-imp builder 1 1)))
 
  (define (builder-begin-object builder)
   (if (builder-is-pretty builder)
-   (let ((indent (builder-indent-string-1 builder)))
-    (builder-result-set! builder (string-append indent "{\n"))
-    (builder-inc-indent builder))
+   (begin (builder-result-set! builder "{\n")
+          (builder-inc-indent builder))
    (builder-result-set! builder "{")))
  
  (define (builder-end-object-imp builder empty-len sub-len)
@@ -70,6 +65,7 @@
    (builder-end-imp builder empty-len sub-len "}")))
 
  (define (builder-end-object builder)
+  (builder-type-set! builder 2)
   (if (builder-is-pretty builder)
    (builder-end-object-imp builder 2 2)
    (builder-end-object-imp builder 1 1)))
@@ -83,8 +79,11 @@
 
  (define (builder-append-value builder val)
   (if (builder-is-pretty builder)
-   (let ((indent (builder-indent-string builder)))
-    (builder-append-value-imp builder indent val ",\n"))
+   (if (not (= (builder-type builder) 0))
+    (begin (builder-type-set! builder 0)
+           (builder-append-value-imp builder "" val ",\n"))
+    (let ((indent (builder-indent-string builder)))
+     (builder-append-value-imp builder indent val ",\n")))
    (builder-append-value-imp builder "" val ",")))
 
  (define (list->array val pretty level)
@@ -99,7 +98,7 @@
  (define (json-build-read-object-entry val pretty level)
   (assert (pair? val))
   (let* ((key (json-build-value (car val) pretty level))
-         (value (json-build-value (cdr val) pretty level)))
+         (value (json-build-value (cdr val) pretty (+ level 1))))
    (string-append key ": " value)))
 
  (define (list->object val pretty level)
@@ -128,5 +127,5 @@
 
  ;Interface
  (define (json-build val pretty)
-  (json-build-value val pretty 1))
+  (json-build-value val pretty 0))
 )

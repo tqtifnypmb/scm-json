@@ -7,7 +7,8 @@
 
  (define-syntax json->string
   (syntax-rules ()
-   ((_ obj pretty) (json-build obj pretty))))
+   ((_ obj pretty) (json-build obj pretty))
+   ((_ obj) (json-build obj #f))))
 
  (define-syntax string->json
   (syntax-rules ()
